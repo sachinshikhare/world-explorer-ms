@@ -17,13 +17,10 @@ public class RestTemplateResponseErrorHandler implements ResponseErrorHandler {
 
     @Override
     public void handleError(ClientHttpResponse clientHttpResponse) throws IOException {
-        if (clientHttpResponse.getStatusCode().is5xxServerError()) {
-            // handle SERVER_ERROR
-        } else if (clientHttpResponse.getStatusCode().is4xxClientError()) {
-            // handle CLIENT_ERROR
-            if (clientHttpResponse.getStatusCode() == HttpStatus.NOT_FOUND) {
+        if (clientHttpResponse.getStatusCode().is4xxClientError()
+                && clientHttpResponse.getStatusCode() == HttpStatus.NOT_FOUND
+        ) {
                 throw new ResourceNotFoundException("Data not found");
-            }
         }
     }
 }
