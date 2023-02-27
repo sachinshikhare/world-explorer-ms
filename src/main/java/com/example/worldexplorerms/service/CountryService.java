@@ -1,13 +1,14 @@
 package com.example.worldexplorerms.service;
 
+import com.example.worldexplorerms.exception.ResourceNotFoundException;
 import com.example.worldexplorerms.model.Country;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-
-import java.util.List;
+import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Service
 public class CountryService {
@@ -17,86 +18,63 @@ public class CountryService {
     @Autowired
     private RestTemplate restTemplate;
 
-    public List<Country> getCountries() {
-
-        ResponseEntity<List<Country>> response = restTemplate.exchange(HOST + "/all",
-                HttpMethod.GET,
-                getRequestEntity(),
-                new ParameterizedTypeReference<>() {
-                });
-
-        return response.getBody();
+    public Flux<Country> getCountries() {
+        return callRestCountriesApiWithEndpoint("/all");
     }
 
-    public List<Country> searchCountriesByName(String name, boolean fullText) {
 
-        ResponseEntity<List<Country>> response = restTemplate.exchange(HOST + "/name/" + name + "?fullText=" + fullText,
-                HttpMethod.GET,
-                getRequestEntity(),
-                new ParameterizedTypeReference<>() {
-                });
-
-        return response.getBody();
+    public Flux<Country> searchCountriesByName(String name, boolean fullText) {
+        return callRestCountriesApiWithEndpoint("/name/" + name + "?fullText=" + fullText);
     }
 
-    public List<Country> searchCountriesByCurrency(String currency) {
-
-        ResponseEntity<List<Country>> response = restTemplate.exchange(HOST + "/currency/" + currency,
-                HttpMethod.GET,
-                getRequestEntity(),
-                new ParameterizedTypeReference<>() {
-                });
-
-        return response.getBody();
+    public Flux<Country> searchCountriesByCurrency(String currency) {
+        return callRestCountriesApiWithEndpoint("/currency/" + currency);
     }
 
-    public List<Country> searchCountriesByLanguage(String language) {
-
-        ResponseEntity<List<Country>> response = restTemplate.exchange(HOST + "/lang/" + language,
-                HttpMethod.GET,
-                getRequestEntity(),
-                new ParameterizedTypeReference<>() {
-                });
-
-        return response.getBody();
+    public Flux<Country> searchCountriesByLanguage(String language) {
+        return callRestCountriesApiWithEndpoint("/lang/" + language);
     }
 
-    public List<Country> searchCountriesByCapital(String capital) {
-
-        ResponseEntity<List<Country>> response = restTemplate.exchange(HOST + "/capital/" + capital,
-                HttpMethod.GET,
-                getRequestEntity(),
-                new ParameterizedTypeReference<>() {
-                });
-
-        return response.getBody();
+    public Flux<Country> searchCountriesByCapital(String capital) {
+        return callRestCountriesApiWithEndpoint("/capital/" + capital);
     }
 
-    public List<Country> searchCountriesByRegion(String region) {
-
-        ResponseEntity<List<Country>> response = restTemplate.exchange(HOST + "/region/" + region,
-                HttpMethod.GET,
-                getRequestEntity(),
-                new ParameterizedTypeReference<>() {
-                });
-
-        return response.getBody();
+    public Flux<Country> searchCountriesByRegion(String region) {
+        return callRestCountriesApiWithEndpoint("/region/" + region);
     }
 
-    public List<Country> searchCountriesBySubRegion(String subRegion) {
-
-        ResponseEntity<List<Country>> response = restTemplate.exchange(HOST + "/subRegion/" + subRegion,
-                HttpMethod.GET,
-                getRequestEntity(),
-                new ParameterizedTypeReference<>() {
-                });
-
-        return response.getBody();
+    public Flux<Country> searchCountriesBySubRegion(String subRegion) {
+        return callRestCountriesApiWithEndpoint("/subregion/" + subRegion);
     }
 
-    private HttpEntity<Country> getRequestEntity() {
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("accept", "application/json");
-        return new HttpEntity<>(null, headers);
+    private WebClient getWebClient() {
+        return WebClient.builder()
+                .filter(errorHandler())
+                .baseUrl(HOST)
+                .build();
+
     }
+
+    private Flux<Country> callRestCountriesApiWithEndpoint(String endpoint) {
+        return getWebClient()
+                .get()
+                .uri(endpoint)
+                .retrieve()
+                .bodyToFlux(Country.class);
+    }
+
+    public static ExchangeFilterFunction errorHandler() {
+        return ExchangeFilterFunction.ofResponseProcessor(clientResponse -> {
+            if (clientResponse.statusCode().is5xxServerError()) {
+                return clientResponse.bodyToMono(String.class)
+                        .flatMap(errorBody -> Mono.error(new ResourceNotFoundException(errorBody)));
+            } else if (clientResponse.statusCode().is4xxClientError()) {
+                return clientResponse.bodyToMono(String.class)
+                        .flatMap(errorBody -> Mono.error(new ResourceNotFoundException(errorBody)));
+            } else {
+                return Mono.just(clientResponse);
+            }
+        });
+    }
+
 }
